@@ -1,5 +1,12 @@
+#define list_h
 #include <corange.h>
+#include <stdint.h>
+#include <stdbool.h>
+#include <iron/types.h>
+#include <iron/mem.h>
+#include <iron/array.h>
 #include <iron/utils.h>
+
 #include "game_data.h"
 float compare_triangles(vec3 v11, vec3 v12, vec3 v13,vec3 v21, vec3 v22, vec3 v23, int * m1){
   float d1 = vec3_dist(v11,v21);
@@ -88,19 +95,15 @@ void mesh_remove_triangle(mesh * mesh, int face){
   mesh->num_triangles -= 1;
 }
 
-/*float mesh_match(vec3 * v1, int * f1, int cnt1, vec3 * v2, int * f2, int cnt2){
-  
-  }*/
-
 void game_data_load(game_data * gd, renderable * r){
   gd->r = r;
   gd->connections = calloc(1, r->num_surfaces * sizeof(gd->connections[0]));
   gd->connections_cnt = calloc(1, r->num_surfaces * sizeof(gd->connections_cnt[0]));
 }
 
-void game_data_update(game_data * d, mat4 projview){
-  model* model = renderable_to_model(d->r);
-  renderable * r = d->r;
+void game_data_update(game_data * gd, mat4 projview){
+  model* model = renderable_to_model(gd->r);
+  renderable * r = gd->r;
   vec3 ** positions = calloc(1,sizeof(vec3) * model->num_meshes);;
   int matched[100];
   for(size_t i = 0; i < array_count(matched); i++)
@@ -161,26 +164,43 @@ void game_data_update(game_data * d, mat4 projview){
     for(size_t i = 0; i < array_count(matched); i++){
       int j = matched[i];
       if(j < 0) continue;
-      if(starts_with("static", model->meshes[i]->name))
-	error("Cannot move static mesh");
+      if(starts_with("static", model->meshes[i]->name)){
+	if(starts_with("static", model->meshes[j]->name)){
+	  
+	}else{
+	  error("Cannot move static mesh");
+	}
+      }
       mesh * m1 = model->meshes[j];
       mesh * m2 = model->meshes[i];
       vec3 * p = positions[i];
-       for(int k = 0; k < m2->num_verts; k++){
-	 p[k] = vec3_add(p[k], offsets[i]);
+      for(int k = 0; k < m2->num_verts; k++){
+	p[k] = vec3_add(p[k], offsets[i]);
       }
-       
+      
       mesh_meld(model->meshes[j], model->meshes[i], offsets[i]);
       int hits[100];
       int deleted_faces = find_mesh_merge_points(m1, hits);
       int compare(const int * _a, const int * _b){
 	return *_a - *_b;
       }
-	  
+      
       qsort(hits, deleted_faces, sizeof(hits[0]), (int (*)(const void*,const void*)) compare);
       for(int k = deleted_faces-1; k >= 0; k--)
 	mesh_remove_triangle(m1, hits[k]);
       m1->triangles = realloc(m1->triangles, m1->num_triangles * 3 * sizeof(m1->triangles[0]));
+      list_push2(gd->connections[j],gd->connections_cnt[j], i);
+      int jcnt = gd->connections_cnt[i];
+      for(int k = 0; k < jcnt; k++){
+	list_push2(gd->connections[j], gd->connections_cnt[j], gd->connections[i][k]);
+      }
+
+      printf("connections: %i", gd->connections_cnt[j]);
+      for(int k = 0 ; k < gd->connections_cnt[j]; k++){
+	printf("%i ", gd->connections[j][k]);
+      }
+      printf("\n");
+      gd->connections_cnt[i] = 0;
     }
     
     bool replace_renderable = false;
@@ -195,7 +215,7 @@ void game_data_update(game_data * d, mat4 projview){
       renderable_delete(r);
       r = renderable_new();
       renderable_add_model(r, model);
-      d->r = r;
+      gd->r = r;
     }
     for(int i = 0; i < model->num_meshes; i++)
       free(positions[i]);
