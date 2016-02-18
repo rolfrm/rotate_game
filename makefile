@@ -1,5 +1,5 @@
 OPT = -g3 -O0
-LIB_SOURCES = main.c ../iron/mem.c ../iron/array.c ../iron/math.c ../iron/log.c ../iron/fileio.c
+LIB_SOURCES = main.c game_data.c ../iron/mem.c ../iron/array.c ../iron/math.c ../iron/log.c ../iron/fileio.c
 CC = gcc
 TARGET = glitch
 LIB_OBJECTS =$(LIB_SOURCES:.c=.o)
