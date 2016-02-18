@@ -1,4 +1,5 @@
 #include <corange.h>
+#include <iron/utils.h>
 #include "game_data.h"
 float compare_triangles(vec3 v11, vec3 v12, vec3 v13,vec3 v21, vec3 v22, vec3 v23, int * m1){
   float d1 = vec3_dist(v11,v21);
@@ -87,35 +88,24 @@ void mesh_remove_triangle(mesh * mesh, int face){
   mesh->num_triangles -= 1;
 }
 
-float mesh_match(vec3 * v1, int * f1, int cnt1, vec3 * v2, int * f2, int cnt2){
+/*float mesh_match(vec3 * v1, int * f1, int cnt1, vec3 * v2, int * f2, int cnt2){
   
-}
-
-
-typedef struct{
-  int ** connections;
-  int * connections_cnt;
-
-  renderable * r;
-
-}game_data;
+  }*/
 
 void game_data_load(game_data * gd, renderable * r){
   gd->r = r;
-  gd->connections = calloc(r->num_meshes * sizeof(gd->connections[0]));
-  gd->connections_cnt = calloc(r->num_meshes * sizeof(gd->connections_cnt[0]));
+  gd->connections = calloc(1, r->num_surfaces * sizeof(gd->connections[0]));
+  gd->connections_cnt = calloc(1, r->num_surfaces * sizeof(gd->connections_cnt[0]));
 }
 
-int ** create_connections(renderable * r){
-  int ** outp = ;
-  return outp;
-}
-
-
-void game_data_update(game_data * d){
+void game_data_update(game_data * d, mat4 projview){
   model* model = renderable_to_model(d->r);
   renderable * r = d->r;
   vec3 ** positions = calloc(1,sizeof(vec3) * model->num_meshes);;
+  int matched[100];
+  for(size_t i = 0; i < array_count(matched); i++)
+    matched[i] = -1;
+  vec3 offsets[model->num_meshes];
   for(int i = 0; i < model->num_meshes; i++){
       mat4 mod1 = mat4_translation(vec3_new(0,0,0));
       mat4 projviewmod1 = mat4_mul_mat4(projview, mod1);
@@ -168,10 +158,10 @@ void game_data_update(game_data * d){
     }
   next_surface:;
             
-    for(int i = 0; i < array_count(matched); i++){
+    for(size_t i = 0; i < array_count(matched); i++){
       int j = matched[i];
       if(j < 0) continue;
-      if(starts_with("static", model->meshes[i]))
+      if(starts_with("static", model->meshes[i]->name))
 	error("Cannot move static mesh");
       mesh * m1 = model->meshes[j];
       mesh * m2 = model->meshes[i];
@@ -191,11 +181,10 @@ void game_data_update(game_data * d){
       for(int k = deleted_faces-1; k >= 0; k--)
 	mesh_remove_triangle(m1, hits[k]);
       m1->triangles = realloc(m1->triangles, m1->num_triangles * 3 * sizeof(m1->triangles[0]));
-    
     }
     
     bool replace_renderable = false;
-    for(int i = array_count(matched)-1; i >=0; i--){
+    for(int i = (int)(array_count(matched)-1); i >=0; i--){
       if(matched[i] < 0) continue;
       matched[i] = -1;
       replace_renderable = true;

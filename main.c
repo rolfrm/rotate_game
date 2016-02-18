@@ -15,6 +15,8 @@
 #include <signal.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include "game_data.h"
+
 void _error(const char * file, int line, const char * msg, ...){
   char buffer[1000];  
   va_list arglist;
@@ -56,10 +58,6 @@ int main(int argc, char ** argv){
   
   int running = 1;
   SDL_Event e = {0};
-  int matched[100];
-  for(int i = 0; i < array_count(matched); i++)
-    matched[i] = -1;
-  vec3 offsets[100] = {0};
   
   static_object* level_entity = entity_new("level", static_object);
   level_entity->renderable = asset_hndl_new_load(P(level));
@@ -92,16 +90,7 @@ int main(int argc, char ** argv){
 
     renderer_set_skydome_enabled(renderer, false);
   }
-  light * l1 = light_new_type(vec3_new(0,10,0), LIGHT_TYPE_SUN);
-  /*l1->enabled = true;
-  l1->power = 10;
-  l1->falloff = 0.1;
-  l1->diffuse_color = vec3_new(1,1,1);
-  l1->ambient_color = vec3_new(1,1,1);
-  l1->specular_color = vec3_new(1,1,1);
-  l1->target = vec3_new(0,0,0);
-  l1->cast_shadows = true;
-  l1->position = vec3_new(0,10,0);*/
+  
   float t = 0;
   while(running) {
 
@@ -147,10 +136,9 @@ int main(int argc, char ** argv){
     shader_program_set_mat4(shader, "proj", ortho);
     
     mat4 projview = mat4_mul_mat4(ortho, view);
-    game_update(&gamedata, projview);
-    level_entity->renderable.ptr = (void *) gamadata.r;
+    game_data_update(&gd, projview);
+    level_entity->renderable.ptr = (void *) gd.r;
     renderer_add(renderer, render_object_static(level_entity));
-    //renderer_add_dyn_light(renderer, l1);
     renderer_render(renderer);
  
     glDisable(GL_DEPTH_TEST);
