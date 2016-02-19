@@ -99,10 +99,26 @@ void game_data_load(game_data * gd, renderable * r){
   gd->r = r;
   gd->connections = calloc(1, r->num_surfaces * sizeof(gd->connections[0]));
   gd->connections_cnt = calloc(1, r->num_surfaces * sizeof(gd->connections_cnt[0]));
+  // things are connected to themselves.
+  for(int i = 0; i < r->num_surfaces; i++){
+    gd->connections[i] = malloc(sizeof(int));
+    gd->connections[i][0] = i;
+  }
+  
+  gd->mesh_types = calloc(1, r->num_surfaces * sizeof(mesh_type));
 }
 
 void game_data_update(game_data * gd, mat4 projview){
   model* model = renderable_to_model(gd->r);
+  for(int i = 0; i < model->num_meshes; i++){
+    const char * name = model->meshes[i]->name;
+    if(startswith("static", name)){
+      gd->mesh_types[i] = mesh_static;
+    }else if(startswith(scenery, name)){
+      gd->mesh_types[i] = mesh_scenery;
+    }else
+      gd->mesh_types[i] = mesh_dynamic;
+  }
   renderable * r = gd->r;
   vec3 ** positions = calloc(1,sizeof(vec3) * model->num_meshes);;
   int matched[100];
@@ -122,11 +138,14 @@ void game_data_update(game_data * gd, mat4 projview){
     
     for(int i=0; i < r->num_surfaces; i++) {
       mesh * mesh1 = model->meshes[i];
-      bool mesh1_static = starts_with("static", mesh1->name);
+      mesh_type mesh1_type = gd->mesh_types[i];
+      if(mesh1_type == mesh_scenery)
+	continue;
       for(int j=i + 1; j < r->num_surfaces; j++) {
 	mesh * mesh2 = model->meshes[j];
-	bool mesh2_static = starts_with("static", mesh2->name);
-
+	mesh_type mesh2_type = gd->mesh_types[j];
+	if(mesh2_type == mesh_scenery)
+	  continue;
 	for(int it = 0; it < mesh1->num_triangles; it++){
 
 	  int t11 = mesh1->triangles[it * 3];
@@ -143,10 +162,10 @@ void game_data_update(game_data * gd, mat4 projview){
 	    if(match < 0.005){
 	      vec3 v1 = mesh1->verticies[mesh1->triangles[it * 3]].position;
 	      vec3 v2 = mesh2->verticies[mesh2->triangles[jt * 3 + m1]].position;
-	      if(mesh2_static && mesh1_static){
+	      if(mesh2_type == mesh_static && mesh1_type == mesh_static){
 		matched[i] = j;
 		offsets[i] = vec3_new(0,0,0);
-	      }else if(mesh2_static){
+	      }else if(mesh2_type == mesh_static){
 		matched[i] = j;
 		offsets[i] = vec3_sub(v2,v1);
 	      }else{
@@ -164,8 +183,10 @@ void game_data_update(game_data * gd, mat4 projview){
     for(size_t i = 0; i < array_count(matched); i++){
       int j = matched[i];
       if(j < 0) continue;
-      if(starts_with("static", model->meshes[i]->name)){
-	if(starts_with("static", model->meshes[j]->name)){
+      mesh_type meshitype = gd->mesh_types[i];
+      mesh_type meshjtype = gd->mesh_types[j];
+      if(meshitype == mesh_static){
+	if(meshjtype == mesh_static){
 	  
 	}else{
 	  error("Cannot move static mesh");
@@ -189,7 +210,6 @@ void game_data_update(game_data * gd, mat4 projview){
       for(int k = deleted_faces-1; k >= 0; k--)
 	mesh_remove_triangle(m1, hits[k]);
       m1->triangles = realloc(m1->triangles, m1->num_triangles * 3 * sizeof(m1->triangles[0]));
-      list_push2(gd->connections[j],gd->connections_cnt[j], i);
       int jcnt = gd->connections_cnt[i];
       for(int k = 0; k < jcnt; k++){
 	list_push2(gd->connections[j], gd->connections_cnt[j], gd->connections[i][k]);
@@ -201,8 +221,15 @@ void game_data_update(game_data * gd, mat4 projview){
       }
       printf("\n");
       gd->connections_cnt[i] = 0;
+      int wincheck[model->num_meshes];
+      for(int i = 0; i < model->num_meshes; i++){
+	mesh_type type = gd->mesh_types[i];
+	wincheck[i] = (type == mesh_dynamic || type == mesh_static) ? 1 : 0;
+      }
+      for(int j = 0; j < gd->connections_cnt[i]; j++)
+	wincheck[gd->connections[j]] += 1;
     }
-    
+
     bool replace_renderable = false;
     for(int i = (int)(array_count(matched)-1); i >=0; i--){
       if(matched[i] < 0) continue;

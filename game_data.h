@@ -1,8 +1,14 @@
 
+typedef enum{
+  mesh_static,
+  mesh_dynamic,
+  mesh_scenery
+}mesh_type;
+
 typedef struct{
   int ** connections;
   int * connections_cnt;
-
+  mesh_type * mesh_types;
   renderable * r;
 
 }game_data;
