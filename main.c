@@ -88,8 +88,24 @@ int main(int argc, char ** argv){
     }
     ui_button_set_onclick(reset, clicked_reset);
 
-    renderer_set_skydome_enabled(renderer, false);
+    ui_rectangle * win_rect = ui_rectangle_new();
+    ui_rectangle_move(win_rect, vec2_new(graphics_viewport_width() * 0.5,
+					 graphics_viewport_height() * 0.5));
+    ui_rectangle_size(win_rect, vec2_new(100,50));
+    win_rect->active = false;
+    ui_rectangle_set_color(win_rect, vec4_new(0.5,1.0,0.5,0.9));
+    
+    ui_rect * win_rect = ui_rect_new();
+    ui_text_move(win_rect, vec2_new(graphics_viewport_width() * 0.5,
+					 graphics_viewport_height() * 0.5));
+    win_rect->active = false;
+    ui_rect_set_color(win_rect, vec4_new(0.5,1.0,0.5,0.9));
+    
+    
+
+    
   }
+  renderer_set_skydome_enabled(renderer, false);
   
   float t = 0;
   while(running) {
@@ -137,7 +153,11 @@ int main(int argc, char ** argv){
     
     mat4 projview = mat4_mul_mat4(ortho, view);
     game_data_update(&gd, projview);
+    
     level_entity->renderable.ptr = (void *) gd.r;
+    if(gd.win_cond_met){
+      // show winning GUI.
+    }
     renderer_add(renderer, render_object_static(level_entity));
     renderer_render(renderer);
  

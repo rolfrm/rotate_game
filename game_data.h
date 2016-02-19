@@ -6,10 +6,11 @@ typedef enum{
 }mesh_type;
 
 typedef struct{
-  int ** connections;
-  int * connections_cnt;
+  int ** connection;
+  int * connection_cnt;
   mesh_type * mesh_types;
   renderable * r;
+  bool win_cond_met;
 
 }game_data;
 

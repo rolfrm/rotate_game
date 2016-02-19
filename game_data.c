@@ -64,7 +64,7 @@ int find_mesh_merge_points(mesh * mesh, int * faces){
   vertex * verts = mesh->verticies;
   int cnt = 0;
   for(int it = 0; it < mesh->num_triangles; it++){
-
+    
     int t11 = mesh->triangles[it * 3];
     int t12 = mesh->triangles[it * 3 + 1];
     int t13 = mesh->triangles[it * 3 + 2];
@@ -97,18 +97,20 @@ void mesh_remove_triangle(mesh * mesh, int face){
 
 void game_data_load(game_data * gd, renderable * r){
   gd->r = r;
-  gd->connections = calloc(1, r->num_surfaces * sizeof(gd->connections[0]));
-  gd->connections_cnt = calloc(1, r->num_surfaces * sizeof(gd->connections_cnt[0]));
+  gd->connection = calloc(1, r->num_surfaces * sizeof(gd->connection[0]));
+  gd->connection_cnt = calloc(1, r->num_surfaces * sizeof(gd->connection_cnt[0]));
   // things are connected to themselves.
   for(int i = 0; i < r->num_surfaces; i++){
-    gd->connections[i] = malloc(sizeof(int));
-    gd->connections[i][0] = i;
+    gd->connection[i] = malloc(sizeof(int));
+    gd->connection[i][0] = i;
   }
   
   gd->mesh_types = calloc(1, r->num_surfaces * sizeof(mesh_type));
 }
 
 void game_data_update(game_data * gd, mat4 projview){
+  if(gd->win_cond_met)
+    return;
   model* model = renderable_to_model(gd->r);
   for(int i = 0; i < model->num_meshes; i++){
     const char * name = model->meshes[i]->name;
@@ -210,24 +212,33 @@ void game_data_update(game_data * gd, mat4 projview){
       for(int k = deleted_faces-1; k >= 0; k--)
 	mesh_remove_triangle(m1, hits[k]);
       m1->triangles = realloc(m1->triangles, m1->num_triangles * 3 * sizeof(m1->triangles[0]));
-      int jcnt = gd->connections_cnt[i];
+      int jcnt = gd->connection_cnt[i];
       for(int k = 0; k < jcnt; k++){
-	list_push2(gd->connections[j], gd->connections_cnt[j], gd->connections[i][k]);
+	list_push2(gd->connection[j], gd->connection_cnt[j], gd->connection[i][k]);
       }
 
-      printf("connections: %i", gd->connections_cnt[j]);
-      for(int k = 0 ; k < gd->connections_cnt[j]; k++){
-	printf("%i ", gd->connections[j][k]);
+      printf("connection: %i", gd->connection_cnt[j]);
+      for(int k = 0 ; k < gd->connection_cnt[j]; k++){
+	printf("%i ", gd->connection[j][k]);
       }
       printf("\n");
-      gd->connections_cnt[i] = 0;
+      gd->connection_cnt[i] = 0;
       int wincheck[model->num_meshes];
       for(int i = 0; i < model->num_meshes; i++){
 	mesh_type type = gd->mesh_types[i];
 	wincheck[i] = (type == mesh_dynamic || type == mesh_static) ? 1 : 0;
       }
-      for(int j = 0; j < gd->connections_cnt[i]; j++)
-	wincheck[gd->connections[j]] += 1;
+      for(int j = 0; j < gd->connection_cnt[i]; j++)
+	wincheck[gd->connection[j]] += 1;
+      bool win = true;
+      for(int i = 0; i < model->num_meshes;i++){
+	if(false == (wincheck[i] == 0 || wincheck[i] == 2)){
+	  win = false;
+	  break;
+	}
+      }
+      if(win)
+	gd->win_cond_met = true;
     }
 
     bool replace_renderable = false;
