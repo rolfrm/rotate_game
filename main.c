@@ -52,7 +52,7 @@ int main(int argc, char ** argv){
   mat4_print(ortho);printf("\n");
   renderer_set_camera(renderer, cam);
 
-  char * level = argc > 1 ? argv[1] : "./assets/4cubes.obj";
+  const char * level = argc > 1 ? argv[1] : "./assets/4cubes.obj";
   asset_hndl teapot_shader = asset_hndl_new_load(P("./assets/teapot.mat"));
   asset_hndl teapot_object = asset_hndl_new_load(P(level));
   
@@ -92,22 +92,22 @@ int main(int argc, char ** argv){
     ui_rectangle * win_rect = ui_elem_new("winbox", ui_rectangle);
     ui_rectangle_move(win_rect, vec2_new(graphics_viewport_width() * 0.5,
 					 graphics_viewport_height() * 0.5));
-    ui_rectangle_size(win_rect, vec2_new(100,50));
+    ui_rectangle_resize(win_rect, vec2_new(100,50));
     win_rect->active = false;
     ui_rectangle_set_color(win_rect, vec4_new(0.5,1.0,0.5,0.9));
     
-    ui_rect * win_text = ui_elem_new("wintext", ui_text);
+    ui_text * win_text = ui_elem_new("wintext", ui_text);
     ui_text_move(win_text, vec2_new(graphics_viewport_width() * 0.5,
 				    graphics_viewport_height() * 0.5));
     win_text->active = false;
-    win_text->string = "You Win!";
     void win_handler(){
-      ui_rect * win_text = ui_elem_get("wintext");
-      ui_rect * win_rect = ui_elem_get("winbox");
+      ui_text * win_text = ui_elem_get("wintext");
+      ui_rectangle * win_rect = ui_elem_get("winbox");
       win_text->active = true;
       win_rect->active = true;
+      ui_text_draw_string(win_text, "You Win!");
     }
-    win_handler();
+
     on_win = win_handler;
   }
   renderer_set_skydome_enabled(renderer, false);
@@ -157,7 +157,7 @@ int main(int argc, char ** argv){
     shader_program_set_mat4(shader, "proj", ortho);
     
     mat4 projview = mat4_mul_mat4(ortho, view);
-    bool prev_win = gd->win_cond_met;
+    bool prev_win = gd.win_cond_met;
     game_data_update(&gd, projview);
     
     level_entity->renderable.ptr = (void *) gd.r;

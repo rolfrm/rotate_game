@@ -114,9 +114,9 @@ void game_data_update(game_data * gd, mat4 projview){
   model* model = renderable_to_model(gd->r);
   for(int i = 0; i < model->num_meshes; i++){
     const char * name = model->meshes[i]->name;
-    if(startswith("static", name)){
+    if(starts_with("static", name)){
       gd->mesh_types[i] = mesh_static;
-    }else if(startswith(scenery, name)){
+    }else if(starts_with("scenery", name)){
       gd->mesh_types[i] = mesh_scenery;
     }else
       gd->mesh_types[i] = mesh_dynamic;
@@ -229,7 +229,7 @@ void game_data_update(game_data * gd, mat4 projview){
 	wincheck[i] = (type == mesh_dynamic || type == mesh_static) ? 1 : 0;
       }
       for(int j = 0; j < gd->connection_cnt[i]; j++)
-	wincheck[gd->connection[j]] += 1;
+	wincheck[gd->connection[i][j]] += 1;
       bool win = true;
       for(int i = 0; i < model->num_meshes;i++){
 	if(false == (wincheck[i] == 0 || wincheck[i] == 2)){
