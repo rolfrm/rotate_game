@@ -61,7 +61,7 @@ int main(int argc, char ** argv){
   
   static_object* level_entity = entity_new("level", static_object);
   level_entity->renderable = asset_hndl_new_load(P(level));
-  
+  void (* on_win)() = NULL;
   
   game_data gd = {0};
   {
@@ -86,24 +86,29 @@ int main(int argc, char ** argv){
       file_reload(P(level));
       gd.r = asset_hndl_ptr(&teapot_object);
     }
+
     ui_button_set_onclick(reset, clicked_reset);
 
-    ui_rectangle * win_rect = ui_rectangle_new();
+    ui_rectangle * win_rect = ui_elem_new("winbox", ui_rectangle);
     ui_rectangle_move(win_rect, vec2_new(graphics_viewport_width() * 0.5,
 					 graphics_viewport_height() * 0.5));
     ui_rectangle_size(win_rect, vec2_new(100,50));
     win_rect->active = false;
     ui_rectangle_set_color(win_rect, vec4_new(0.5,1.0,0.5,0.9));
     
-    ui_rect * win_rect = ui_rect_new();
-    ui_text_move(win_rect, vec2_new(graphics_viewport_width() * 0.5,
-					 graphics_viewport_height() * 0.5));
-    win_rect->active = false;
-    ui_rect_set_color(win_rect, vec4_new(0.5,1.0,0.5,0.9));
-    
-    
-
-    
+    ui_rect * win_text = ui_elem_new("wintext", ui_text);
+    ui_text_move(win_text, vec2_new(graphics_viewport_width() * 0.5,
+				    graphics_viewport_height() * 0.5));
+    win_text->active = false;
+    win_text->string = "You Win!";
+    void win_handler(){
+      ui_rect * win_text = ui_elem_get("wintext");
+      ui_rect * win_rect = ui_elem_get("winbox");
+      win_text->active = true;
+      win_rect->active = true;
+    }
+    win_handler();
+    on_win = win_handler;
   }
   renderer_set_skydome_enabled(renderer, false);
   
@@ -152,11 +157,13 @@ int main(int argc, char ** argv){
     shader_program_set_mat4(shader, "proj", ortho);
     
     mat4 projview = mat4_mul_mat4(ortho, view);
+    bool prev_win = gd->win_cond_met;
     game_data_update(&gd, projview);
     
     level_entity->renderable.ptr = (void *) gd.r;
-    if(gd.win_cond_met){
+    if(gd.win_cond_met && !prev_win && on_win != NULL){
       // show winning GUI.
+      on_win();
     }
     renderer_add(renderer, render_object_static(level_entity));
     renderer_render(renderer);
