@@ -15,7 +15,9 @@
 #include <signal.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include "level_loader.h"
 #include "game_data.h"
+
 
 void _error(const char * file, int line, const char * msg, ...){
   char buffer[1000];  
@@ -30,9 +32,54 @@ void _error(const char * file, int line, const char * msg, ...){
   exit(10);
 }
 
+void test(){
+  level_desc lv = {0};
+  level_load(&lv, "assets/level1.data");
+  printf("LV: %i \n",lv.cnt);
+  for(int i = 0; i < lv.cnt; i++){
+    printf("> %s ", lv.name[i]);
+    vec3_print(lv.offset[i]);
+    printf("\n");    
+  }
+  game_data gd = {0};
+  game_data_load(&gd, &lv);
+    
+  camera* cam = entity_new((char *) "camera", camera);
+  cam->orthographic = true;
+  mat4 proj = camera_proj_matrix(cam);
+  mat4 view = camera_view_matrix(cam);
+  mat4 projview = mat4_mul_mat4(proj, view);
+  game_data_update(&gd, projview);
+  
+  printf("gd cnt: %i\n", gd.movable_cnt);
+  for(int i = 0; i < gd.movable_cnt; i++){
+    movable_object * mov = gd.movable + i;
+    printf("mov item cnt: %i\n", mov->positions_cnt);
+    for(int j = 0; j < mov->positions_cnt; j++){
+      printf("vert cnt: %i\n", mov->vertex_cnt[j]);
+      for(int k = 0; k < mov->vertex_cnt[j]; k++){
+	vec3_print(mov->positions[j][k]);
+	vec3_print(mov->positions_cache[j][k]);
+	printf("\n");
+      }
+      printf("\n");
+    }
+  }
+  level_clear(&lv);
+}
+
 int main(int argc, char ** argv){
-  mat4 ortho = mat4_orthographic(-20,20,-20,20,0.01,100);
+  
   corange_init("assets");
+
+  //test();
+  
+  //return 0;
+
+  void _at_error(const char * str){
+    _error("corange", -1, str);
+  }
+
   graphics_viewport_set_title("Rotatör!");
   graphics_viewport_set_size(800, 800);
   renderer * renderer = renderer_new(asset_hndl_new_load(P("./assets/graphics.cfg")));
@@ -48,25 +95,25 @@ int main(int argc, char ** argv){
   cam->near_clip = 0.1;
   cam->far_clip = 50.0;
 
-  mat4_print(camera_proj_matrix(cam));printf("\n");
-  mat4_print(ortho);printf("\n");
   renderer_set_camera(renderer, cam);
-
+  at_error(_at_error);
   const char * level = argc > 1 ? argv[1] : "./assets/4cubes.obj";
-  asset_hndl teapot_shader = asset_hndl_new_load(P("./assets/teapot.mat"));
-  asset_hndl teapot_object = asset_hndl_new_load(P(level));
+  //asset_hndl level_material = asset_hndl_new_load(P("./assets/level1.mat"));
+  //printf("material: %p\n", level_material);
   
   int running = 1;
   SDL_Event e = {0};
   
-  static_object* level_entity = entity_new("level", static_object);
-  level_entity->renderable = asset_hndl_new_load(P(level));
+  //static_object* level_entity = entity_new("level", static_object);
+
+  //level_entity->renderable = asset_hndl_new_load(P(level));
   void (* on_win)() = NULL;
   
   game_data gd = {0};
+  level_desc lv = {0};
   {
-    renderable * r = asset_hndl_ptr(&teapot_object);
-    game_data_load(&gd, r);
+    level_load(&lv, "assets/level1.data");
+    game_data_load(&gd, &lv);
   }
   
   {// Load UI
@@ -81,18 +128,12 @@ int main(int argc, char ** argv){
     ui_button_move(reset, vec2_new(140, graphics_viewport_height() - 70));
     ui_button_resize(reset, vec2_new(50,25));
     ui_button_set_label(reset, "Reset");
-    void clicked_reset(){
-      printf("Reset clicked!\n");
-      file_reload(P(level));
-      gd.r = asset_hndl_ptr(&teapot_object);
-    }
-
-    ui_button_set_onclick(reset, clicked_reset);
 
     ui_rectangle * win_rect = ui_elem_new("winbox", ui_rectangle);
-    ui_rectangle_move(win_rect, vec2_new(graphics_viewport_width() * 0.5,
-					 graphics_viewport_height() * 0.5));
+
     ui_rectangle_resize(win_rect, vec2_new(100,50));
+    ui_rectangle_move(win_rect, vec2_new(graphics_viewport_width() * 0.5 - 20,
+					 graphics_viewport_height() * 0.5 - 15));
     win_rect->active = false;
     ui_rectangle_set_color(win_rect, vec4_new(0.5,1.0,0.5,0.9));
     
@@ -100,18 +141,34 @@ int main(int argc, char ** argv){
     ui_text_move(win_text, vec2_new(graphics_viewport_width() * 0.5,
 				    graphics_viewport_height() * 0.5));
     win_text->active = false;
+    ui_text_draw(win_text);
+    ui_text_set_color(win_text, vec4_new(0,0,0,1));
+
+    void clicked_reset(){
+      file_reload(P(level));
+      //gd.r = asset_hndl_ptr(&level_object);
+      ui_text * win_text = ui_elem_get("wintext");
+      ui_rectangle * win_rect = ui_elem_get("winbox");      
+      gd.win_cond_met = false;
+      win_text->active = false;
+      win_rect->active = false;
+    }
+
     void win_handler(){
       ui_text * win_text = ui_elem_get("wintext");
       ui_rectangle * win_rect = ui_elem_get("winbox");
       win_text->active = true;
       win_rect->active = true;
       ui_text_draw_string(win_text, "You Win!");
+      
     }
 
+    ui_button_set_onclick(reset, clicked_reset);
+    
     on_win = win_handler;
   }
   renderer_set_skydome_enabled(renderer, false);
-  
+
   float t = 0;
   while(running) {
 
@@ -120,7 +177,7 @@ int main(int argc, char ** argv){
     
     
     camera* cam = entity_get("camera");
-    
+
     while(SDL_PollEvent(&e)) {
       switch(e.type){
       case SDL_KEYDOWN:
@@ -147,27 +204,27 @@ int main(int argc, char ** argv){
     glClearColor(0.25, 0.25, 0.25, 1.0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glEnable(GL_DEPTH_TEST);
+
     
-    shader_program* shader = material_first_program(asset_hndl_ptr(&teapot_shader));
-
-    shader_program_enable(shader);
-
     mat4 view = camera_view_matrix(cam);
-    shader_program_set_mat4(shader, "view", view);
-    shader_program_set_mat4(shader, "proj", ortho);
-    
-    mat4 projview = mat4_mul_mat4(ortho, view);
+    mat4 proj = camera_proj_matrix(cam);
+    mat4 projview = mat4_mul_mat4(proj, view);
     bool prev_win = gd.win_cond_met;
     game_data_update(&gd, projview);
     
-    level_entity->renderable.ptr = (void *) gd.r;
+    //level_entity->renderable.ptr = (void *) gd.r;
     if(gd.win_cond_met && !prev_win && on_win != NULL){
       // show winning GUI.
+      printf("WIN!\n");
       on_win();
     }
-    renderer_add(renderer, render_object_static(level_entity));
+    for(int i = 0; i < gd.movable_cnt;i++){
+      static_object * obj = gd.movable[i].object;
+      printf("%p\n", obj->renderable.ptr);
+      renderer_add(renderer, render_object_static(obj));
+    }
+
     renderer_render(renderer);
- 
     glDisable(GL_DEPTH_TEST);
     ui_render();
     
@@ -176,6 +233,6 @@ int main(int argc, char ** argv){
     frame_end();
     }
 
-    
+
   return 0;
 }

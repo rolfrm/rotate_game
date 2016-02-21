@@ -6,8 +6,9 @@
 #include <iron/mem.h>
 #include <iron/array.h>
 #include <iron/utils.h>
-
+#include "level_loader.h"
 #include "game_data.h"
+
 float compare_triangles(vec3 v11, vec3 v12, vec3 v13,vec3 v21, vec3 v22, vec3 v23, int * m1){
   float d1 = vec3_dist(v11,v21);
   float d2 = vec3_dist(v11,v22);
@@ -95,50 +96,183 @@ void mesh_remove_triangle(mesh * mesh, int face){
   mesh->num_triangles -= 1;
 }
 
-void game_data_load(game_data * gd, renderable * r){
-  gd->r = r;
-  gd->connection = calloc(1, r->num_surfaces * sizeof(gd->connection[0]));
-  gd->connection_cnt = calloc(1, r->num_surfaces * sizeof(gd->connection_cnt[0]));
-  // things are connected to themselves.
-  for(int i = 0; i < r->num_surfaces; i++){
-    gd->connection[i] = malloc(sizeof(int));
-    gd->connection[i][0] = i;
+void game_data_load(game_data * gd, const level_desc * lv){
+  for(int i = 0; i < lv->cnt; i++){
+    static_object * level_entity = entity_new("item%i", static_object, i);
+    movable_object mov = {0};
+    mov.object = level_entity;
+
+    asset * hndl = asset_get_load(P(lv->name[i]));
+    renderable * r = hndl;
+    //printf(">>>>> %s", r->path.ptr);
+    if(r == NULL)
+      error("Unable to load level data for '%s'\n", lv->name[i]);
+    model* model = renderable_to_model(r);
+    level_entity->position = lv->offset[i];
+    int con[10];
+    int con_cnt = 0;
+    for(int j = 0; j < model->num_meshes; j++){
+      mesh * mesh = model->meshes[j];
+      if(starts_with("connection", mesh->name))
+	con[con_cnt++] = j;
+
+    }
+    for(int j = con_cnt - 1; j >= 0; j--){
+      mesh * m = model_remove_mesh(model, con[j]);
+      mov.positions = realloc(mov.positions, (1 + mov.positions_cnt) * sizeof(vec3*));
+      mov.positions_cache = realloc(mov.positions_cache, (1 + mov.positions_cnt) * sizeof(vec3*));
+      mov.vertex_cnt = realloc(mov.vertex_cnt, (1 + mov.positions_cnt) * sizeof(int));
+      mov.vertex_cnt[mov.positions_cnt] = m->num_verts;
+      mov.positions[mov.positions_cnt] = malloc(m->num_verts * sizeof(vec3));
+      mov.positions_cache[mov.positions_cnt] = malloc(m->num_verts * sizeof(vec3));
+      for(int i = 0; i < m->num_verts; i++){
+	mov.positions[mov.positions_cnt][i] = m->verticies[i].position;
+      }
+      mov.positions_cnt += 1;
+      mesh_delete(m);
+    }
+    level_entity->renderable = asset_hndl_new_load(P(lv->name[i]));
+    
+    list_push(gd->movable, gd->movable_cnt, mov);
+    gd->movable_cnt += 1;
+    //renderable_delete(r);
+    //r = renderable_new();
+    //renderable_add_model(r, model);
+    
   }
-  
-  gd->mesh_types = calloc(1, r->num_surfaces * sizeof(mesh_type));
 }
 
 void game_data_update(game_data * gd, mat4 projview){
   if(gd->win_cond_met)
     return;
-  model* model = renderable_to_model(gd->r);
-  for(int i = 0; i < model->num_meshes; i++){
-    const char * name = model->meshes[i]->name;
-    if(starts_with("static", name)){
-      gd->mesh_types[i] = mesh_static;
-    }else if(starts_with("scenery", name)){
-      gd->mesh_types[i] = mesh_scenery;
-    }else
-      gd->mesh_types[i] = mesh_dynamic;
-  }
-  renderable * r = gd->r;
-  vec3 ** positions = calloc(1,sizeof(vec3) * model->num_meshes);;
-  int matched[100];
-  for(size_t i = 0; i < array_count(matched); i++)
-    matched[i] = -1;
-  vec3 offsets[model->num_meshes];
-  for(int i = 0; i < model->num_meshes; i++){
-      mat4 mod1 = mat4_translation(vec3_new(0,0,0));
-      mat4 projviewmod1 = mat4_mul_mat4(projview, mod1);
-      positions[i] = calloc(1,model->meshes[i]->num_verts * sizeof(vec3) );
-      vec3 * pos = positions[i];
-      for(int j = 0; j < model->meshes[i]->num_verts; j++){
-	pos[j] = mat4_mul_vec3(projviewmod1, model->meshes[i]->verticies[j].position);
-	pos[j].z = 0;
+
+  for(int i = 0; i < gd->movable_cnt; i++){
+    movable_object * mov = gd->movable + i;
+    mat4 world = static_object_world(mov->object);
+    mat4 projviewworld = mat4_mul_mat4(projview, world);
+    for(int j = 0; j < mov->positions_cnt; j++){
+      for(int k = 0; k < mov->vertex_cnt[j]; k++){
+	mov->positions_cache[j][k] = mat4_mul_vec3(projviewworld, mov->positions[j][k]);
+	mov->positions_cache[j][k].z = 0;
       }
     }
+  }
+  int matches[gd->movable_cnt];
+  vec3 offset[gd->movable_cnt];
+  for(size_t i = 0; i < array_count(matches); i++)
+    matches[i] = -1;
+  for(int i = 0; i < gd->movable_cnt; i++){
+    movable_object * movi = gd->movable + i;
+    for(int j = i + 1; j < gd->movable_cnt; j++){
+      movable_object * movj = gd->movable + j;
+
+      for(int it = 0; it < movi->positions_cnt; it++){
+	for(int jt = 0; jt < movj->positions_cnt; jt++){
+
+	  int v1cnt = movi->vertex_cnt[it];
+	  int v2cnt = movj->vertex_cnt[jt];
+	  if(v1cnt != v2cnt)
+	    continue;
+	  printf("\n");	  
+	  vec3 * v1 = movi->positions_cache[it];
+	  vec3 * v2 = movj->positions_cache[jt];
+	  bool does_match = true;
+	  for(int k = 0; k < v1cnt; k++){
+	    float match = vec3_dist_manhattan(v1[k], v2[v1cnt - 1 - k]);
+	    printf("matches %f ?? ", match);
+	    vec3_print(v1[k]); vec3_print(v2[v1cnt - 1 - k]);
+	    printf("\n");
+	    
+	    if( match < 0.01){
+	      vec3 * v1 = movi->positions[it];
+	      vec3 * v2 = movj->positions[jt];
+	      int k2 = v1cnt - 1 - k;
+	      offset[i] = vec3_sub(vec3_add(v1[k], movi->object->position), vec3_add(v2[k2],movj->object->position));
+	      i = j;
+	      
+	    }else{
+	      does_match = false;
+	      break;
+	    }
+	  }
+	  if(does_match){
+	    printf("Match!\n");
+	    matches[i] = j;
+	    goto next;
+	  }
+
+	
+	  
+	}
+      }
+    }
+  next:;
+  }
+
+  for(size_t i = 0; i < array_count(matches); i++){
+    int j = matches[i];
+    if(j < 0) continue;
     
-    for(int i=0; i < r->num_surfaces; i++) {
+    movable_object * m1 = gd->movable + i;
+    movable_object * m2 = gd->movable + j;
+    m2->object->position = vec3_add(m2->object->position,offset[i]);
+
+  }
+  /*
+    vec3 * p = positions[i];
+    for(int k = 0; k < m2->num_verts; k++){
+      p[k] = vec3_add(p[k], offsets[i]);
+    }
+    
+    mesh_meld(model->meshes[j], model->meshes[i], offsets[i]);
+    int hits[100];
+    int deleted_faces = find_mesh_merge_points(m1, hits);
+    int compare(const int * _a, const int * _b){
+      return *_a - *_b;
+    }
+    
+    qsort(hits, deleted_faces, sizeof(hits[0]), (int (*)(const void*,const void*)) compare);
+    for(int k = deleted_faces-1; k >= 0; k--)
+      mesh_remove_triangle(m1, hits[k]);
+    m1->triangles = realloc(m1->triangles, m1->num_triangles * 3 * sizeof(m1->triangles[0]));
+    int jcnt = gd->connection_cnt[i];
+    for(int k = 0; k < jcnt; k++){
+      list_push2(gd->connection[j], gd->connection_cnt[j], gd->connection[i][k]);
+      }
+    gd->connection_cnt[i] = 0;
+  }
+
+    int wincheck[3] = {0,0,0};
+      
+    for(int i = 0; i < model->num_meshes; i++){
+      mesh_type type = gd->mesh_types[i];
+      wincheck[type] += 1;
+    }
+    bool win = (wincheck[mesh_static] + wincheck[mesh_dynamic]) == 1;
+    if(win)
+      gd->win_cond_met = true;
+    
+    bool replace_renderable = false;
+    for(int i = (int)(array_count(matched)-1); i >=0; i--){
+      if(matched[i] < 0) continue;
+      matched[i] = -1;
+      replace_renderable = true;
+      mesh_delete(model_remove_mesh(model, i)); 
+    }
+
+    if(replace_renderable){
+      renderable_delete(r);
+      r = renderable_new();
+      renderable_add_model(r, model);
+      gd->r = r;
+    }
+    for(int i = 0; i < model->num_meshes; i++)
+      free(positions[i]);
+    free(positions);
+    model_delete(model);
+  */
+  /*
+  for(int i=0; i < r->num_surfaces; i++) {
       mesh * mesh1 = model->meshes[i];
       mesh_type mesh1_type = gd->mesh_types[i];
       if(mesh1_type == mesh_scenery)
@@ -216,31 +350,19 @@ void game_data_update(game_data * gd, mat4 projview){
       for(int k = 0; k < jcnt; k++){
 	list_push2(gd->connection[j], gd->connection_cnt[j], gd->connection[i][k]);
       }
-
-      printf("connection: %i", gd->connection_cnt[j]);
-      for(int k = 0 ; k < gd->connection_cnt[j]; k++){
-	printf("%i ", gd->connection[j][k]);
-      }
-      printf("\n");
       gd->connection_cnt[i] = 0;
-      int wincheck[model->num_meshes];
-      for(int i = 0; i < model->num_meshes; i++){
-	mesh_type type = gd->mesh_types[i];
-	wincheck[i] = (type == mesh_dynamic || type == mesh_static) ? 1 : 0;
-      }
-      for(int j = 0; j < gd->connection_cnt[i]; j++)
-	wincheck[gd->connection[i][j]] += 1;
-      bool win = true;
-      for(int i = 0; i < model->num_meshes;i++){
-	if(false == (wincheck[i] == 0 || wincheck[i] == 2)){
-	  win = false;
-	  break;
-	}
-      }
-      if(win)
-	gd->win_cond_met = true;
     }
 
+    int wincheck[3] = {0,0,0};
+      
+    for(int i = 0; i < model->num_meshes; i++){
+      mesh_type type = gd->mesh_types[i];
+      wincheck[type] += 1;
+    }
+    bool win = (wincheck[mesh_static] + wincheck[mesh_dynamic]) == 1;
+    if(win)
+      gd->win_cond_met = true;
+    
     bool replace_renderable = false;
     for(int i = (int)(array_count(matched)-1); i >=0; i--){
       if(matched[i] < 0) continue;
@@ -258,6 +380,6 @@ void game_data_update(game_data * gd, mat4 projview){
     for(int i = 0; i < model->num_meshes; i++)
       free(positions[i]);
     free(positions);
-    model_delete(model);
+    model_delete(model);*/
 }
 
