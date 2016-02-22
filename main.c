@@ -220,7 +220,7 @@ int main(int argc, char ** argv){
     }
     for(int i = 0; i < gd.movable_cnt;i++){
       static_object * obj = gd.movable[i].object;
-      printf("%p\n", obj->renderable.ptr);
+      //printf("%p\n", obj->renderable.ptr);
       renderer_add(renderer, render_object_static(obj));
     }
 

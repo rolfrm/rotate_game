@@ -173,21 +173,18 @@ void game_data_update(game_data * gd, mat4 projview){
 	if(movi->ignore[it])
 	  continue;
 	for(int jt = 0; jt < movj->positions_cnt; jt++){
-	  if(movi->ignore[it])
+	  if(movj->ignore[it])
 	    continue;
 	  int v1cnt = movi->vertex_cnt[it];
 	  int v2cnt = movj->vertex_cnt[jt];
 	  if(v1cnt != v2cnt)
 	    continue;
-	  printf("\n");	  
+
 	  vec3 * v1 = movi->positions_cache[it];
 	  vec3 * v2 = movj->positions_cache[jt];
 	  bool does_match = true;
 	  for(int k = 0; k < v1cnt; k++){
 	    float match = vec3_dist_manhattan(v1[k], v2[v1cnt - 1 - k]);
-	    printf("matches %f ?? ", match);
-	    vec3_print(v1[k]); vec3_print(v2[v1cnt - 1 - k]);
-	    printf("\n");
 	    
 	    if( match < 0.01){
 	      
@@ -195,7 +192,7 @@ void game_data_update(game_data * gd, mat4 projview){
 	      vec3 * v2 = movj->positions[jt];
 	      int k2 = v1cnt - 1 - k;
 	      offset[i] = vec3_sub(vec3_add(v1[k], movi->object->position), vec3_add(v2[k2],movj->object->position));
-	      i = j;
+
 	      
 	    }else{
 	      does_match = false;
@@ -203,10 +200,10 @@ void game_data_update(game_data * gd, mat4 projview){
 	    }
 	  }
 	  if(does_match){
-	    printf("Match!\n");
 	    matches[i] = j;
 	    match1_item[i] = it;
 	    match2_item[j] = jt;
+	    i = j;
 	    goto next;
 	  }  
 	}
@@ -220,13 +217,12 @@ void game_data_update(game_data * gd, mat4 projview){
     if(j < 0) continue;
     int item1 = match1_item[i];
     int item2 = match2_item[j];
-    
+
     movable_object * m1 = gd->movable + i;
     movable_object * m2 = gd->movable + j;
     if(m1->ignore[item1] || m2->ignore[item2])
       error("This should not happen!");
     vec3 off = offset[i];
-    //m2->object->position = vec3_add(m2->object->position,offset[i]);
     int to_move[gd->movable_cnt];
     memset(to_move, 0, sizeof(to_move));
     to_move[j] = 1;
@@ -252,175 +248,17 @@ void game_data_update(game_data * gd, mat4 projview){
     
     m1->ignore[item1] = true;
     m2->ignore[item2] = true;
+
     if(to_move[i] == 0){
       for(size_t i = 0; i < array_count(to_move); i++){
 	if(to_move[i] > 0)
 	  gd->movable[i].object->position = vec3_add(gd->movable[i].object->position, off);
       }
     }
+    list_push(m1->linked_object, m1->linked_object_cnt, j);
+    list_push(m2->linked_object, m2->linked_object_cnt, i);
+    m1->linked_object_cnt += 1;
+    m2->linked_object_cnt += 1;
   }
-  /*
-    vec3 * p = positions[i];
-    for(int k = 0; k < m2->num_verts; k++){
-      p[k] = vec3_add(p[k], offsets[i]);
-    }
-    
-    mesh_meld(model->meshes[j], model->meshes[i], offsets[i]);
-    int hits[100];
-    int deleted_faces = find_mesh_merge_points(m1, hits);
-    int compare(const int * _a, const int * _b){
-      return *_a - *_b;
-    }
-    
-    qsort(hits, deleted_faces, sizeof(hits[0]), (int (*)(const void*,const void*)) compare);
-    for(int k = deleted_faces-1; k >= 0; k--)
-      mesh_remove_triangle(m1, hits[k]);
-    m1->triangles = realloc(m1->triangles, m1->num_triangles * 3 * sizeof(m1->triangles[0]));
-    int jcnt = gd->connection_cnt[i];
-    for(int k = 0; k < jcnt; k++){
-      list_push2(gd->connection[j], gd->connection_cnt[j], gd->connection[i][k]);
-      }
-    gd->connection_cnt[i] = 0;
-  }
-
-    int wincheck[3] = {0,0,0};
-      
-    for(int i = 0; i < model->num_meshes; i++){
-      mesh_type type = gd->mesh_types[i];
-      wincheck[type] += 1;
-    }
-    bool win = (wincheck[mesh_static] + wincheck[mesh_dynamic]) == 1;
-    if(win)
-      gd->win_cond_met = true;
-    
-    bool replace_renderable = false;
-    for(int i = (int)(array_count(matched)-1); i >=0; i--){
-      if(matched[i] < 0) continue;
-      matched[i] = -1;
-      replace_renderable = true;
-      mesh_delete(model_remove_mesh(model, i)); 
-    }
-
-    if(replace_renderable){
-      renderable_delete(r);
-      r = renderable_new();
-      renderable_add_model(r, model);
-      gd->r = r;
-    }
-    for(int i = 0; i < model->num_meshes; i++)
-      free(positions[i]);
-    free(positions);
-    model_delete(model);
-  */
-  /*
-  for(int i=0; i < r->num_surfaces; i++) {
-      mesh * mesh1 = model->meshes[i];
-      mesh_type mesh1_type = gd->mesh_types[i];
-      if(mesh1_type == mesh_scenery)
-	continue;
-      for(int j=i + 1; j < r->num_surfaces; j++) {
-	mesh * mesh2 = model->meshes[j];
-	mesh_type mesh2_type = gd->mesh_types[j];
-	if(mesh2_type == mesh_scenery)
-	  continue;
-	for(int it = 0; it < mesh1->num_triangles; it++){
-
-	  int t11 = mesh1->triangles[it * 3];
-	  int t12 = mesh1->triangles[it * 3 + 1];
-	  int t13 = mesh1->triangles[it * 3 + 2];
-	  vec3 v11 = positions[i][t11], v12 = positions[i][t12], v13 = positions[i][t13];
-	  for(int jt = 0; jt < mesh2->num_triangles; jt++){
-	    int t21 = mesh2->triangles[jt * 3];
-	    int t22 = mesh2->triangles[jt * 3 + 1];
-	    int t23 = mesh2->triangles[jt * 3 + 2];
-	    vec3 v21 = positions[j][t21], v22 = positions[j][t22], v23 = positions[j][t23];
-	    int m1 = 0;
-	    float match = compare_triangles(v11,v12,v13,v21,v22,v23, &m1);
-	    if(match < 0.005){
-	      vec3 v1 = mesh1->verticies[mesh1->triangles[it * 3]].position;
-	      vec3 v2 = mesh2->verticies[mesh2->triangles[jt * 3 + m1]].position;
-	      if(mesh2_type == mesh_static && mesh1_type == mesh_static){
-		matched[i] = j;
-		offsets[i] = vec3_new(0,0,0);
-	      }else if(mesh2_type == mesh_static){
-		matched[i] = j;
-		offsets[i] = vec3_sub(v2,v1);
-	      }else{
-		matched[j] = i;
-		offsets[j] = vec3_sub(v1,v2);
-	      }
-	      goto next_surface;
-	    }
-	  }
-	}
-      }
-    }
-  next_surface:;
-            
-    for(size_t i = 0; i < array_count(matched); i++){
-      int j = matched[i];
-      if(j < 0) continue;
-      mesh_type meshitype = gd->mesh_types[i];
-      mesh_type meshjtype = gd->mesh_types[j];
-      if(meshitype == mesh_static){
-	if(meshjtype == mesh_static){
-	  
-	}else{
-	  error("Cannot move static mesh");
-	}
-      }
-      mesh * m1 = model->meshes[j];
-      mesh * m2 = model->meshes[i];
-      vec3 * p = positions[i];
-      for(int k = 0; k < m2->num_verts; k++){
-	p[k] = vec3_add(p[k], offsets[i]);
-      }
-      
-      mesh_meld(model->meshes[j], model->meshes[i], offsets[i]);
-      int hits[100];
-      int deleted_faces = find_mesh_merge_points(m1, hits);
-      int compare(const int * _a, const int * _b){
-	return *_a - *_b;
-      }
-      
-      qsort(hits, deleted_faces, sizeof(hits[0]), (int (*)(const void*,const void*)) compare);
-      for(int k = deleted_faces-1; k >= 0; k--)
-	mesh_remove_triangle(m1, hits[k]);
-      m1->triangles = realloc(m1->triangles, m1->num_triangles * 3 * sizeof(m1->triangles[0]));
-      int jcnt = gd->connection_cnt[i];
-      for(int k = 0; k < jcnt; k++){
-	list_push2(gd->connection[j], gd->connection_cnt[j], gd->connection[i][k]);
-      }
-      gd->connection_cnt[i] = 0;
-    }
-
-    int wincheck[3] = {0,0,0};
-      
-    for(int i = 0; i < model->num_meshes; i++){
-      mesh_type type = gd->mesh_types[i];
-      wincheck[type] += 1;
-    }
-    bool win = (wincheck[mesh_static] + wincheck[mesh_dynamic]) == 1;
-    if(win)
-      gd->win_cond_met = true;
-    
-    bool replace_renderable = false;
-    for(int i = (int)(array_count(matched)-1); i >=0; i--){
-      if(matched[i] < 0) continue;
-      matched[i] = -1;
-      replace_renderable = true;
-      mesh_delete(model_remove_mesh(model, i)); 
-    }
-
-    if(replace_renderable){
-      renderable_delete(r);
-      r = renderable_new();
-      renderable_add_model(r, model);
-      gd->r = r;
-    }
-    for(int i = 0; i < model->num_meshes; i++)
-      free(positions[i]);
-    free(positions);
-    model_delete(model);*/
 }
 
