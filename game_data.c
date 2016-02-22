@@ -131,6 +131,7 @@ void game_data_load(game_data * gd, const level_desc * lv){
       mov.positions_cnt += 1;
       mesh_delete(m);
     }
+    mov.ignore = calloc(1, mov.positions_cnt * sizeof(bool));
     level_entity->renderable = asset_hndl_new_load(P(lv->name[i]));
     
     list_push(gd->movable, gd->movable_cnt, mov);
@@ -158,6 +159,8 @@ void game_data_update(game_data * gd, mat4 projview){
     }
   }
   int matches[gd->movable_cnt];
+  int match1_item[gd->movable_cnt];
+  int match2_item[gd->movable_cnt];
   vec3 offset[gd->movable_cnt];
   for(size_t i = 0; i < array_count(matches); i++)
     matches[i] = -1;
@@ -167,8 +170,11 @@ void game_data_update(game_data * gd, mat4 projview){
       movable_object * movj = gd->movable + j;
 
       for(int it = 0; it < movi->positions_cnt; it++){
+	if(movi->ignore[it])
+	  continue;
 	for(int jt = 0; jt < movj->positions_cnt; jt++){
-
+	  if(movi->ignore[it])
+	    continue;
 	  int v1cnt = movi->vertex_cnt[it];
 	  int v2cnt = movj->vertex_cnt[jt];
 	  if(v1cnt != v2cnt)
@@ -184,6 +190,7 @@ void game_data_update(game_data * gd, mat4 projview){
 	    printf("\n");
 	    
 	    if( match < 0.01){
+	      
 	      vec3 * v1 = movi->positions[it];
 	      vec3 * v2 = movj->positions[jt];
 	      int k2 = v1cnt - 1 - k;
@@ -198,11 +205,10 @@ void game_data_update(game_data * gd, mat4 projview){
 	  if(does_match){
 	    printf("Match!\n");
 	    matches[i] = j;
+	    match1_item[i] = it;
+	    match2_item[j] = jt;
 	    goto next;
-	  }
-
-	
-	  
+	  }  
 	}
       }
     }
@@ -212,11 +218,46 @@ void game_data_update(game_data * gd, mat4 projview){
   for(size_t i = 0; i < array_count(matches); i++){
     int j = matches[i];
     if(j < 0) continue;
+    int item1 = match1_item[i];
+    int item2 = match2_item[j];
     
     movable_object * m1 = gd->movable + i;
     movable_object * m2 = gd->movable + j;
-    m2->object->position = vec3_add(m2->object->position,offset[i]);
-
+    if(m1->ignore[item1] || m2->ignore[item2])
+      error("This should not happen!");
+    vec3 off = offset[i];
+    //m2->object->position = vec3_add(m2->object->position,offset[i]);
+    int to_move[gd->movable_cnt];
+    memset(to_move, 0, sizeof(to_move));
+    to_move[j] = 1;
+    do{
+      bool one_exists = false;
+      for(size_t i = 0; i < array_count(to_move); i++){
+	if(to_move[i] == 1){
+	  one_exists = true;
+	  int cnt = gd->movable[i].linked_object_cnt;
+	  for(int j = 0; j < cnt; j++){
+	    int k = gd->movable[i].linked_object[j];
+	    if(to_move[k] == 0)
+	      to_move[k] = 1;
+	    else
+	      to_move[k] = 2;
+	  }
+	  to_move[i] = 2;
+	}
+      }
+      if(!one_exists)
+	break;
+    }while(true);
+    
+    m1->ignore[item1] = true;
+    m2->ignore[item2] = true;
+    if(to_move[i] == 0){
+      for(size_t i = 0; i < array_count(to_move); i++){
+	if(to_move[i] > 0)
+	  gd->movable[i].object->position = vec3_add(gd->movable[i].object->position, off);
+      }
+    }
   }
   /*
     vec3 * p = positions[i];

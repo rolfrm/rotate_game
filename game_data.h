@@ -10,7 +10,11 @@ typedef struct{
   vec3 ** positions;
   vec3 ** positions_cache;
   int * vertex_cnt;
+  bool * ignore;
   int positions_cnt;
+
+  int * linked_object;
+  int linked_object_cnt;
 }movable_object;
 
 typedef struct{
