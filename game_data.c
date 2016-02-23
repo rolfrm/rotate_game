@@ -151,6 +151,7 @@ void game_data_load(game_data * gd, const level_desc * lv){
       renderable * r = renderable_new();
       renderable_add_model(r, model);
       asset_define(P(bkt->key), r);
+      bkt = bkt->next;
     }
   }
   dict_delete(new_models);
