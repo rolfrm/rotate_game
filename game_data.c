@@ -138,29 +138,22 @@ void game_data_load(game_data * gd, const level_desc * lv){
     
     list_push(gd->movable, gd->movable_cnt, mov);
     gd->movable_cnt += 1;
-    if(dict_contains(new_models, lv->name[i])){
-      dict_set(new_models, lv->name, model);
+    if(false == dict_contains(new_models, lv->name[i])){
+      dict_set(new_models, lv->name[i], model);
     }else{
       model_delete(model);
     }
-    //renderable_delete(r);
-    //r = renderable_new();
-    //renderable_add_model(r, model);
-    
   }
   for(int i = 0; i < new_models->size; i++){
     struct bucket * bkt = new_models->buckets[i];
     while(bkt != NULL){
-      asset_hndl hndl = asset_hndl_new_load(P(bkt->key));
       model * model = bkt->item;
       renderable * r = renderable_new();
       renderable_add_model(r, model);
-      hndl.ptr = r;
-      bkt = bkt->next;
+      asset_define(P(bkt->key), r);
     }
   }
-  
-  
+  dict_delete(new_models);
 }
 
 void game_data_update(game_data * gd, mat4 projview){

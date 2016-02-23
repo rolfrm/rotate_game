@@ -6,7 +6,7 @@ LIB_OBJECTS =$(LIB_SOURCES:.c=.o)
 LDFLAGS= -L. -L../Corange $(OPT) -Wextra #-lmcheck #-ftlo #setrlimit on linux 
 LIBS= -ldl  -lcorange -lGL -lSDL2 -lSDL2_net -lSDL2_mixer -lm
 ALL= $(TARGET)
-CFLAGS = -I.. -I../Corange/include -std=c11 -c $(OPT) -Wall -Wextra -Werror=implicit-function-declaration -Wformat=0 -D_GNU_SOURCE -fdiagnostics-color -Wextra  -Wwrite-strings -fbounds-check #-Werror   #-DDEBUG 
+CFLAGS = -I.. -I../Corange/include -std=c11 -c $(OPT) -Wall -Wextra -Werror=implicit-function-declaration -Wformat=0 -D_GNU_SOURCE -fdiagnostics-color -Wextra  -Wwrite-strings -fbounds-check -Werror   #-DDEBUG 
 
 $(TARGET): $(LIB_OBJECTS)
 	$(CC) $(LDFLAGS) $(LIB_OBJECTS) $(LIBS) -o $@
