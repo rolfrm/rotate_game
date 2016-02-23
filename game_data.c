@@ -112,12 +112,14 @@ void game_data_load(game_data * gd, const level_desc * lv){
     model* model = renderable_to_model(r);
     level_entity->position = lv->offset[i];
     int con[10];
+    bool inverse[model->num_meshes];
     int con_cnt = 0;
     for(int j = 0; j < model->num_meshes; j++){
       mesh * mesh = model->meshes[j];
-      if(starts_with("connection", mesh->name))
+      inverse[j] = starts_with("connectioni", mesh->name);
+      if(starts_with("connection", mesh->name)){
 	con[con_cnt++] = j;
-
+      }
     }
     for(int j = con_cnt - 1; j >= 0; j--){
       mesh * m = model_remove_mesh(model, con[j]);
@@ -127,9 +129,18 @@ void game_data_load(game_data * gd, const level_desc * lv){
       mov.vertex_cnt[mov.positions_cnt] = m->num_verts;
       mov.positions[mov.positions_cnt] = malloc(m->num_verts * sizeof(vec3));
       mov.positions_cache[mov.positions_cnt] = malloc(m->num_verts * sizeof(vec3));
-      for(int i = 0; i < m->num_verts; i++){
-	mov.positions[mov.positions_cnt][i] = m->verticies[i].position;
+
+      if(inverse[j]){
+	printf("Inverse\n");
+	for(int i = 0; i < m->num_verts; i++){
+	  mov.positions[mov.positions_cnt][m->num_verts - i -1] = m->verticies[i].position;
+	}
+      }else{
+	for(int i = 0; i < m->num_verts; i++){
+	  mov.positions[mov.positions_cnt][i] = m->verticies[i].position;
+	}
       }
+      
       mov.positions_cnt += 1;
       mesh_delete(m);
     }
@@ -205,8 +216,8 @@ void game_data_update(game_data * gd, mat4 projview){
 	      vec3 * v1 = movi->positions[it];
 	      vec3 * v2 = movj->positions[jt];
 	      int k2 = v1cnt - 1 - k;
-	      offset[i] = vec3_sub(vec3_add(v1[k], movi->object->position), vec3_add(v2[k2],movj->object->position));
-
+	      offset[i] = vec3_sub(vec3_add(v1[k], movi->object->position),
+				   vec3_add(v2[k2],movj->object->position));
 	      
 	    }else{
 	      does_match = false;
