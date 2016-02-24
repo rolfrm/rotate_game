@@ -11,6 +11,7 @@ typedef struct{
   vec3 ** positions_cache;
   int * vertex_cnt;
   bool * ignore;
+  bool * inverted;
   int positions_cnt;
 
   int * linked_object;

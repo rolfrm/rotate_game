@@ -103,20 +103,18 @@ void game_data_load(game_data * gd, const level_desc * lv){
     static_object * level_entity = entity_new("item%i", static_object, i);
     movable_object mov = {0};
     mov.object = level_entity;
-
+    mov.inverted = calloc(1, mov.positions_cnt * sizeof(bool));
     asset * hndl = asset_get_load(P(lv->name[i]));
     renderable * r = hndl;
-    //printf(">>>>> %s", r->path.ptr);
     if(r == NULL)
       error("Unable to load level data for '%s'\n", lv->name[i]);
     model* model = renderable_to_model(r);
     level_entity->position = lv->offset[i];
     int con[10];
-    bool inverse[model->num_meshes];
     int con_cnt = 0;
     for(int j = 0; j < model->num_meshes; j++){
       mesh * mesh = model->meshes[j];
-      inverse[j] = starts_with("connectioni", mesh->name);
+      mov.inverted[j] = starts_with("connectioni", mesh->name);
       if(starts_with("connection", mesh->name)){
 	con[con_cnt++] = j;
       }
@@ -129,22 +127,16 @@ void game_data_load(game_data * gd, const level_desc * lv){
       mov.vertex_cnt[mov.positions_cnt] = m->num_verts;
       mov.positions[mov.positions_cnt] = malloc(m->num_verts * sizeof(vec3));
       mov.positions_cache[mov.positions_cnt] = malloc(m->num_verts * sizeof(vec3));
-
-      if(inverse[j]){
-	printf("Inverse\n");
-	for(int i = 0; i < m->num_verts; i++){
-	  mov.positions[mov.positions_cnt][m->num_verts - i -1] = m->verticies[i].position;
-	}
-      }else{
-	for(int i = 0; i < m->num_verts; i++){
-	  mov.positions[mov.positions_cnt][i] = m->verticies[i].position;
-	}
-      }
       
+      for(int i = 0; i < m->num_verts; i++){
+	mov.positions[mov.positions_cnt][i] = m->verticies[i].position;
+      }
+
       mov.positions_cnt += 1;
       mesh_delete(m);
     }
     mov.ignore = calloc(1, mov.positions_cnt * sizeof(bool));
+    
     level_entity->renderable = asset_hndl_new_load(P(lv->name[i]));
     
     list_push(gd->movable, gd->movable_cnt, mov);
@@ -200,6 +192,8 @@ void game_data_update(game_data * gd, mat4 projview){
 	for(int jt = 0; jt < movj->positions_cnt; jt++){
 	  if(movj->ignore[it])
 	    continue;
+	  if(!(movj->inverted[jt] ^ movi->inverted[it]))
+	    continue;
 	  int v1cnt = movi->vertex_cnt[it];
 	  int v2cnt = movj->vertex_cnt[jt];
 	  if(v1cnt != v2cnt)
@@ -209,16 +203,14 @@ void game_data_update(game_data * gd, mat4 projview){
 	  vec3 * v2 = movj->positions_cache[jt];
 	  bool does_match = true;
 	  for(int k = 0; k < v1cnt; k++){
-	    float match = vec3_dist_manhattan(v1[k], v2[v1cnt - 1 - k]);
+	    float match = vec3_dist_manhattan(v1[k], v2[k]);
 	    
 	    if( match < 0.01){
 	      
 	      vec3 * v1 = movi->positions[it];
 	      vec3 * v2 = movj->positions[jt];
-	      int k2 = v1cnt - 1 - k;
 	      offset[i] = vec3_sub(vec3_add(v1[k], movi->object->position),
-				   vec3_add(v2[k2],movj->object->position));
-	      
+				   vec3_add(v2[k],movj->object->position));
 	    }else{
 	      does_match = false;
 	      break;
