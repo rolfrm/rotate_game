@@ -114,8 +114,8 @@ void game_data_load(game_data * gd, const level_desc * lv){
     int con_cnt = 0;
     for(int j = 0; j < model->num_meshes; j++){
       mesh * mesh = model->meshes[j];
-      mov.inverted[j] = starts_with("connectioni", mesh->name);
       if(starts_with("connection", mesh->name)){
+
 	con[con_cnt++] = j;
       }
     }
@@ -127,20 +127,22 @@ void game_data_load(game_data * gd, const level_desc * lv){
       mov.vertex_cnt[mov.positions_cnt] = m->num_verts;
       mov.positions[mov.positions_cnt] = malloc(m->num_verts * sizeof(vec3));
       mov.positions_cache[mov.positions_cnt] = malloc(m->num_verts * sizeof(vec3));
-      
+      mov.inverted[mov.positions_cnt] = starts_with("connectioni", m->name);
+
       for(int i = 0; i < m->num_verts; i++){
 	mov.positions[mov.positions_cnt][i] = m->verticies[i].position;
       }
-
+      // this is not good im iterating backwards and adding elements forward..
+      // fix this asap.
       mov.positions_cnt += 1;
       mesh_delete(m);
     }
+    
     mov.ignore = calloc(1, mov.positions_cnt * sizeof(bool));
     
     level_entity->renderable = asset_hndl_new_load(P(lv->name[i]));
     
-    list_push(gd->movable, gd->movable_cnt, mov);
-    gd->movable_cnt += 1;
+    list_push2(gd->movable, gd->movable_cnt, mov);
     if(false == dict_contains(new_models, lv->name[i])){
       dict_set(new_models, lv->name[i], model);
     }else{
@@ -189,9 +191,11 @@ void game_data_update(game_data * gd, mat4 projview){
       for(int it = 0; it < movi->positions_cnt; it++){
 	if(movi->ignore[it])
 	  continue;
+	
 	for(int jt = 0; jt < movj->positions_cnt; jt++){
-	  if(movj->ignore[it])
+	  if(movj->ignore[jt])
 	    continue;
+	
 	  if(!(movj->inverted[jt] ^ movi->inverted[it]))
 	    continue;
 	  int v1cnt = movi->vertex_cnt[it];
@@ -202,11 +206,12 @@ void game_data_update(game_data * gd, mat4 projview){
 	  vec3 * v1 = movi->positions_cache[it];
 	  vec3 * v2 = movj->positions_cache[jt];
 	  bool does_match = true;
+	
 	  for(int k = 0; k < v1cnt; k++){
 	    float match = vec3_dist_manhattan(v1[k], v2[k]);
-	    
+	
 	    if( match < 0.01){
-	      
+
 	      vec3 * v1 = movi->positions[it];
 	      vec3 * v2 = movj->positions[jt];
 	      offset[i] = vec3_sub(vec3_add(v1[k], movi->object->position),
@@ -217,6 +222,7 @@ void game_data_update(game_data * gd, mat4 projview){
 	    }
 	  }
 	  if(does_match){
+
 	    matches[i] = j;
 	    match1_item[i] = it;
 	    match2_item[j] = jt;
